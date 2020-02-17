@@ -32,7 +32,7 @@ Connection: upgrade
 Upgrade: TCPStream
 
 ```
-Now on the HTTP connection to akona.me is a raw TCP connection to google.com port 443.
+Now the HTTP connection to akona.me is a raw TCP connection to google.com port 443.
 
 Caveats:
 *	TCP flags and pointers like URG and PSH are not proxied. This can be problematic for protocols like FTP
