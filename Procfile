@@ -1,1 +1,1 @@
-web: go run . -port=$PORT
+web: $( ls $HOME/bin ) -port=$PORT
