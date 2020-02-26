@@ -2,45 +2,74 @@
 package main
 import "fmt"
 import "os"
-import "github.com/asaskevich/govalidator"
+import "strings"
+import "strconv"
 import "net/http"
+import "flag"
 
-const help_text = "./TCPStream PORT\r\n\tSimple TCPStream over HTTP proxy server. Visit https://akona.me/public-acccess for more information.\r\n\r\n2020 Arctic Kona. No rights reserved.\r\n"
+const proxy_name = "PA-Proxy/0.1"
+const serve_help = "./proxy [-port=PORT] [-tcpstream] [-tcpbind] [-udpbind]\r\n\tSimple TCP over HTTP proxy server. Visit https://akona.me/public-acccess/server for more information.\r\n\r\n2020 Arctic Kona. No rights reserved.\r\n"
 
-// Identifies the subprotocol to upgrade to.
+// Default settings
+var serve_port = 80
+var serve_tcpstream = true
+var serve_tcpbind = false
+var serve_udpbind = false
+
+// Identifies the protocol to upgrade to.
 func proxy_handle( response http.ResponseWriter , request * http.Request ) {
-	if ( len( request.Header[ "Upgrade" ] ) == 0 ) {
+	if ( len( request.Header[ "Connection" ] ) == 0 || len( request.Header[ "Upgrade" ] ) == 0 ) {
 		http.Redirect( response , request , "https://akona.me/public-access" , 307 )
 		return
 	}
 
-	switch request.Header[ "Upgrade" ][ 0 ] {
-		case "TCPStream":
-			proxy_tcpstream( response , request )
-		default:
-			http.Error( response , "" , 501 )
+	// Standard calls me to try each protocol. Not sure why a client would want that.
+	for _ , protocol := range strings.Split( request.Header[ "Upgrade" ][ 0 ] , "," ) {
+		switch strings.TrimSpace( protocol ) {
+			case "TCPStream":
+				if serve_tcpstream {
+					proxy_tcpstream( response , request )
+					return
+				}
+			case "TCPBind":
+				if serve_tcpbind {
+					proxy_tcpbind( response , request )
+					return
+				}
+			case "UDPBind":
+				if serve_udpbind {
+					proxy_udpbind( response , request )
+					return
+				}
+		}
 	}
 
+	http.Error( response , "" , 501 )
 	return
 }
 
 // Main loop. Kinda obvious.
 func main( ) {
-	if len( os.Args ) == 1 || os.Args[ 1 ] == "--help" || os.Args[ 1 ] == "-h" || os.Args[ 1 ] == "/?" {
-		fmt.Print( help_text )
-		return
+	flag.Usage = func( ) {
+		fmt.Print( serve_help )
 	}
-	if ! govalidator.IsPort( os.Args[ 1 ] ) {
-		fmt.Fprint( os.Stderr , os.Args[ 1 ] + ": not a port number\r\n" )
-		os.Exit( 1 )
+	flag.IntVar( & serve_port , "port" , serve_port , "port to listen on" )
+	flag.BoolVar( & serve_tcpstream , "tcpstream" , ! serve_tcpstream , "enable tcpstream protocol" )
+	flag.BoolVar( & serve_tcpbind , "tcpbind" , ! serve_tcpbind , "enable tcpbind protocol" )
+	flag.BoolVar( & serve_udpbind , "udpbind" , ! serve_udpbind , "enable udpbind protocol" )
+	flag.Parse( )
+	if serve_port < 0 || serve_port > 65535 {
+		fmt.Fprintf( os.Stderr , "%d: not a port \r\n" , serve_port )
+		os.Exit( 10 )
 	}
 
+	// Serve
 	http.HandleFunc( "/" , proxy_handle )
-	fmt.Print( "Online at " + os.Args[ 1 ] + "\r\n" )
-	err := http.ListenAndServe( ":" + os.Args[ 1 ] , nil )
-	if ( err != nil ) {
-		fmt.Fprint( os.Stderr , err ) }
+	fmt.Printf( "Starting at %d \r\n" , serve_port )
+	err := http.ListenAndServe( ":" + strconv.Itoa( serve_port ) , nil )
+	if err != nil {
+		fmt.Fprintf( os.Stderr , "%s \r\n" , err ) }
 
-	return
+	os.Exit( 20 )
 }
 

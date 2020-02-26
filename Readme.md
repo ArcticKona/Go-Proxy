@@ -4,8 +4,6 @@ What is?
 --------
 Proxy over HTTP allows proxying TCP and UDP connections over HTTP.
 
-Kina like the HTTP CONNECT method.
-
 But why?
 --------
 HTTP CONNECTs cannot be pushed though reverse proxies, CDNs, and other infrastructure reliability.
@@ -15,7 +13,7 @@ Proxy over HTTP can, while still retaining excellent performance.
 
 TCPStream
 ---------
-Creates a TCP connection to remote server.
+This opens a TCP tunnel to a remote server, just like the HTTP CONNECT method.
 
 Example request to google.com via akona.me, and response.
 ```
@@ -32,7 +30,6 @@ Connection: upgrade
 Upgrade: TCPStream
 
 ```
-Now on the HTTP connection to akona.me is a raw TCP connection to google.com port 443.
 
 Caveats:
 *	TCP flags and pointers like URG and PSH are not proxied. This can be problematic for protocols like FTP
