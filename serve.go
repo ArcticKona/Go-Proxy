@@ -1,75 +1,85 @@
-// Proxy over HTTP. 2020 Arctic Kona. No rights reserved.
+// Proxy over HTTP. 2020 Arctic Kona. Some rights reserved.
+// TODO: Make use of HTTP/2
 package main
+import "flag"
 import "fmt"
+import "io"
+import "net"
+import "net/http"
 import "os"
 import "strings"
-import "strconv"
-import "net/http"
-import "flag"
 
-const proxy_name = "PA-Proxy/0.1"
-const serve_help = "./proxy [-port=PORT] [-tcpstream] [-tcpbind] [-udpbind]\r\n\tSimple TCP over HTTP proxy server. Visit https://akona.me/public-acccess/server for more information.\r\n\r\n2020 Arctic Kona. No rights reserved.\r\n"
+const help = "Help not yet ready.\r\n"
+var target = make( map[string]string )
+var listen = ":80"
 
-// Default settings
-var serve_port = 80
-var serve_tcpstream = true
-var serve_tcpbind = false
-var serve_udpbind = false
-
-// Identifies the protocol to upgrade to.
-func proxy_handle( response http.ResponseWriter , request * http.Request ) {
-	if ( len( request.Header[ "Connection" ] ) == 0 || len( request.Header[ "Upgrade" ] ) == 0 ) {
-		http.Redirect( response , request , "https://akona.me/public-access" , 307 )
-		return
-	}
-
-	// Standard calls me to try each protocol. Not sure why a client would want that.
-	for _ , protocol := range strings.Split( request.Header[ "Upgrade" ][ 0 ] , "," ) {
-		switch strings.TrimSpace( protocol ) {
-			case "TCPStream":
-				if serve_tcpstream {
-					proxy_tcpstream( response , request )
-					return
-				}
-			case "TCPBind":
-				if serve_tcpbind {
-					proxy_tcpbind( response , request )
-					return
-				}
-			case "UDPBind":
-				if serve_udpbind {
-					proxy_udpbind( response , request )
-					return
-				}
-		}
-	}
-
-	http.Error( response , "" , 501 )
-	return
-}
-
-// Main loop. Kinda obvious.
+// Main loop
 func main( ) {
-	flag.Usage = func( ) {
-		fmt.Print( serve_help )
-	}
-	flag.IntVar( & serve_port , "port" , serve_port , "port to listen on" )
-	flag.BoolVar( & serve_tcpstream , "tcpstream" , ! serve_tcpstream , "enable tcpstream protocol" )
-	flag.BoolVar( & serve_tcpbind , "tcpbind" , ! serve_tcpbind , "enable tcpbind protocol" )
-	flag.BoolVar( & serve_udpbind , "udpbind" , ! serve_udpbind , "enable udpbind protocol" )
+	// Gets arguments
+	flag.Usage = func( ) { fmt.Printf( help ) }
+	flag.StringVar( & listen , "server" , listen, "" )
 	flag.Parse( )
-	if serve_port < 0 || serve_port > 65535 {
-		fmt.Fprintf( os.Stderr , "%d: not a port \r\n" , serve_port )
-		os.Exit( 10 )
+
+	// Parse targets
+	for _ , argument := range flag.Args( ) {
+		argument := strings.Split( argument , ":" )
+		if len( argument ) != 3 {
+			fmt.Fprintf( os.Stderr , help )
+			os.Exit( 30 ) }
+		target[ argument[ 0 ] ] = argument[ 1 ] + ":" + argument[ 2 ]
 	}
 
 	// Serve
-	http.HandleFunc( "/" , proxy_handle )
-	fmt.Printf( "Starting at %d \r\n" , serve_port )
-	err := http.ListenAndServe( ":" + strconv.Itoa( serve_port ) , nil )
-	if err != nil {
-		fmt.Fprintf( os.Stderr , "%s \r\n" , err ) }
+	http.HandleFunc( "/" , func( response http.ResponseWriter , request * http.Request ) {
+
+		// Client didnt request upgrade :(
+		if ( len( request.Header[ "Connection" ] ) == 0 || len( request.Header[ "Upgrade" ] ) == 0 ) {
+			http.Error( response , "" , 204 )
+			return
+		}
+
+		for _ , header := range request.Header[ "Upgrade" ] {
+			for _ , protocol := range strings.Split( header , "," ) {
+				protocol = strings.TrimSpace( protocol )
+				if _ , err := target[ protocol ] ; err {
+
+					// Connects on match
+					tomuck , err := net.Dial( "tcp" , target[ protocol ] )
+					if err != nil {
+						http.Error( response , "" , 503 )
+						return }
+
+					frommuck , _ , err := response.( http.Hijacker ).Hijack( )
+					if err != nil {
+						http.Error( response , "" , 500 )
+						return }
+
+					frommuck.Write( []byte( request.Proto + " 101 Upgrade OK\r\nConnection: Upgrade\r\nUpgrade: " + protocol + "\r\n\r\n" ) )
+
+					// FIXME: Caveat: Does not shuttle TCP flags like URG and PSH which may be required for some protocols
+					go func( ){
+						io.Copy( tomuck , frommuck )
+						tomuck.Close( )
+					}( )
+					go func( ) {
+						io.Copy( frommuck , tomuck )
+						frommuck.Close( )
+					}( )
+
+					return
+				}
+			}
+		}
+
+		// Oops
+		http.Error( response , "" , 501 )
+		return
+
+	} )
+	err := http.ListenAndServe( listen , nil )
+	fmt.Fprintf( os.Stderr , "%s\r\n" , err )
 
 	os.Exit( 20 )
 }
+
 

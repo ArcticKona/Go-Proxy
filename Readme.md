@@ -1,3 +1,5 @@
+DOESNT WORK YET
+
 Forwards any TCP protocol over HTTP.
 
 HTTP CONNECTs cannot be pushed though existing servers, CDNs, and other infrastructure reliability.
