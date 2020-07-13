@@ -1,0 +1,3 @@
+#!/bin/bash
+exec go run server.go --server=:$PORT ssh:localhost:22
+exit $?
