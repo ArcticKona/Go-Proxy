@@ -1,5 +1,5 @@
 // Proxy over HTTP. 2020 Arctic Kona. Some rights reserved.
-// TODO: Make use of HTTP/2
+// +build server
 package main
 import "flag"
 import "fmt"

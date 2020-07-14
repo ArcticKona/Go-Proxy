@@ -1,15 +1,17 @@
 package main
+import "akona.me/http-upgrade-proxy/lib"
+import "crypto/tls"
 import "flag"
 import "fmt"
 import "io"
 import "net"
-import "net/http"
+import "net/url"
 import "os"
 import "strings"
+import "time"
 
 const help = "Help not yet ready.\r\n"
 var server = "example.com:80"
-var tls = false
 
 // Main loop
 func main( ) {
@@ -18,12 +20,8 @@ func main( ) {
 	flag.StringVar( & server , "server" , server , "" )
 	flag.Parse( )
 
-	// Simple autodetect SSL
-//        _ , err := tls.Dial( "tcp" , server , & tls.Config{
-//                InsecureSkipVerify: true,
-//        } )
-//        if ( err == nil ) {
-//                tls = true }
+	// Create object
+	server = libclient.New( url.Parse( server ) )
 
 	// Parse targets
 	for _ , argument := range flag.Args( ) {
@@ -38,20 +36,16 @@ func main( ) {
 			if err != nil { 
 				fmt.Fprintf( os.Stderr , "%w" , err ) }
 			for {
-				tomuck , err := listen.Accept( )
-				if err != nil { 
-					fmt.Fprintf( os.Stderr , "%w" , err ) }
 
-				// Make connection to server
-				request , err := http.NewRequest( "GET" , server , nil )
-				request.Header.Set( "Connection" , "upgrade" )
-				request.Header.Set( "Upgrade" , argument[ 0 ] )
-				frommuck := & http.Transport{ }
-				response , err := ( & http.Client{ Transport: frommuck } ).Do( request )
+				// Recive connection
+				frommuck , err := listen.Accept( )
 				if err != nil {
 					fmt.Fprintf( os.Stderr , "%w" , err ) }
-				if response.StatusCode != 101 {
-					fmt.Fprintf( os.Stderr , "ERROR: Server did not upgrade: %d" , response.StatusCode ) }
+
+				// Create stream connection
+				tomuck , err := server.New( argument[ 0 ] )
+				if err != nil { 
+					fmt.Fprintf( os.Stderr , "%w" , err ) }
 
 				// FIXME: Caveat: Does not shuttle TCP flags like URG and PSH which may be required for some protocols
 				go func( ){
@@ -68,6 +62,8 @@ func main( ) {
 		}( )
 	}
 
-	os.Exit( 20 )
+	for ;; {
+		time.Sleep( 100000 * time.Millisecond )
+	}
 }
 

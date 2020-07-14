@@ -1,5 +1,3 @@
-module akona.me/pa-proxy/v0
+module akona.me/http-upgrade-proxy
 
-go 1.13
-
-require github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
+go 1.14
