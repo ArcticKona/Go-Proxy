@@ -27,8 +27,7 @@ func main( ) {
 			fmt.Fprintf( os.Stderr , help )
 			os.Exit( 30 ) }
 		if argument[ 1 ][ 0 : 2 ] == "//" {
-			argument[ 1 ] = argument[ 1 ][ 2 : ]
-		} 
+			argument[ 1 ] = argument[ 1 ][ 2 : ] } 
 		target[ argument[ 0 ] ] = argument[ 1 ] + ":" + argument[ 2 ]
 	}
 
