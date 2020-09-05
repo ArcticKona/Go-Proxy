@@ -1,3 +1,4 @@
 exec: start.sh
 ubun: golang
 ngin: nginx.conf
+retr: true
